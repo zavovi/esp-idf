@@ -378,6 +378,10 @@ static esp_err_t esp_system_event_debug(system_event_t *event)
         ESP_LOGD(TAG, "SYSTEM_EVENT_ETH_GOT_IP");
         break;
     }
+    case SYSTEM_EVENT_ETH_DATA_RX: {
+        ESP_LOGD(TAG, "SYSTEM_EVENT_ETH_DATA_RX");
+    	break;
+    }
 
     default: {
         ESP_LOGW(TAG, "unexpected system event %d!", event->event_id);

@@ -1088,18 +1088,39 @@ static esp_err_t tcpip_adapter_dhcpc_stop_api(tcpip_adapter_api_msg_t * msg)
 esp_err_t tcpip_adapter_eth_input(void *buffer, uint16_t len, void *eb)
 {
     ethernetif_input(esp_netif[TCPIP_ADAPTER_IF_ETH], buffer, len);
+    
+    /* Send event "data_rx" to user */
+    system_event_t evt;
+    evt.event_id = SYSTEM_EVENT_ETH_DATA_RX;
+    evt.event_info.data_rx.if_index = TCPIP_ADAPTER_IF_ETH;
+    esp_event_send(&evt);
+    
     return ESP_OK;
 }
 
 esp_err_t tcpip_adapter_sta_input(void *buffer, uint16_t len, void *eb)
 {
     wlanif_input(esp_netif[TCPIP_ADAPTER_IF_STA], buffer, len, eb);
+    
+    /* Send event "data_rx" to user */
+    system_event_t evt;
+    evt.event_id = SYSTEM_EVENT_ETH_DATA_RX;
+    evt.event_info.data_rx.if_index = TCPIP_ADAPTER_IF_STA;
+    esp_event_send(&evt);
+    
     return ESP_OK;
 }
 
 esp_err_t tcpip_adapter_ap_input(void *buffer, uint16_t len, void *eb)
 {
     wlanif_input(esp_netif[TCPIP_ADAPTER_IF_AP], buffer, len, eb);
+    
+    /* Send event "data_rx" to user */
+    system_event_t evt;
+    evt.event_id = SYSTEM_EVENT_ETH_DATA_RX;
+    evt.event_info.data_rx.if_index = TCPIP_ADAPTER_IF_AP;
+    esp_event_send(&evt);
+    
     return ESP_OK;
 }
 

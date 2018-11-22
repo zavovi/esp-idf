@@ -52,6 +52,7 @@ typedef enum {
     SYSTEM_EVENT_ETH_CONNECTED,            /**< ESP32 ethernet phy link up */
     SYSTEM_EVENT_ETH_DISCONNECTED,         /**< ESP32 ethernet phy link down */
     SYSTEM_EVENT_ETH_GOT_IP,               /**< ESP32 ethernet got IP from connected AP */
+	SYSTEM_EVENT_ETH_DATA_RX,			   /**< ESP32 data RX callback */
     SYSTEM_EVENT_MAX
 } system_event_id_t;
 
@@ -106,6 +107,10 @@ typedef struct {
 } system_event_got_ip6_t;
 
 typedef struct {
+	tcpip_adapter_if_t if_index;
+} system_event_data_rx_t;
+
+typedef struct {
     uint8_t mac[6];           /**< MAC address of the station connected to ESP32 soft-AP */
     uint8_t aid;              /**< the aid that ESP32 soft-AP gives to the station connected to  */
 } system_event_ap_staconnected_t;
@@ -132,6 +137,7 @@ typedef union {
     system_event_ap_stadisconnected_t          sta_disconnected;   /**< a station disconnected to ESP32 soft-AP */
     system_event_ap_probe_req_rx_t             ap_probereqrecved;  /**< ESP32 soft-AP receive probe request packet */
     system_event_got_ip6_t                     got_ip6;            /**< ESP32 station　or ap or ethernet ipv6 addr state change to preferred */
+    system_event_data_rx_t					   data_rx;
 } system_event_info_t;
 
 typedef struct {
