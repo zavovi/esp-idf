@@ -240,6 +240,7 @@ build_esp_idf_tests_cmake:
     when: always
     paths:
       - build_examples/*/*/*/build/*.bin
+      - build_examples/*/*/*/sdkconfig
       - build_examples/*/*/*/build/*.elf
       - build_examples/*/*/*/build/*.map
       - build_examples/*/*/*/build/download.config
@@ -272,6 +273,7 @@ build_esp_idf_tests_cmake:
     when: always
     paths:
       - build_examples_cmake/*/*/*/build/*.bin
+      - build_examples_cmake/*/*/*/sdkconfig
       - build_examples_cmake/*/*/*/build/*.elf
       - build_examples_cmake/*/*/*/build/*.map
       - build_examples_cmake/*/*/*/build/download.config
@@ -1541,6 +1543,13 @@ UT_012_03:
     - UT_T1_1
     - 8Mpsram
 
+UT_012_04:
+  <<: *unit_test_template
+  tags:
+    - ESP32_IDF
+    - UT_T1_1
+    - 8Mpsram
+
 UT_017_01:
   <<: *unit_test_template
   tags:
@@ -1729,6 +1738,18 @@ IT_006_05:
     - ESP32_IDF
     - SSC_T1_6
 
+IT_006_06:
+  <<: *test_template
+  tags:
+    - ESP32_IDF
+    - SSC_T1_6
+
+IT_006_07:
+  <<: *test_template
+  tags:
+    - ESP32_IDF
+    - SSC_T1_6
+
 IT_007_01:
   <<: *test_template
   tags:
@@ -1736,6 +1757,12 @@ IT_007_01:
     - SSC_T1_7
 
 IT_007_02:
+  <<: *test_template
+  tags:
+    - ESP32_IDF
+    - SSC_T1_7
+
+IT_007_03:
   <<: *test_template
   tags:
     - ESP32_IDF
@@ -1766,6 +1793,12 @@ IT_011_01:
     - SSC_T50_1
 
 IT_012_01:
+  <<: *test_template
+  tags:
+    - ESP32_IDF
+    - SSC_T1_9
+
+IT_012_02:
   <<: *test_template
   tags:
     - ESP32_IDF
