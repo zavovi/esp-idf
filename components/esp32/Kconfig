@@ -124,7 +124,8 @@ config SPIRAM_CACHE_WORKAROUND
     help
         Revision 1 of the ESP32 has a bug that can cause a write to PSRAM not to take place in some situations
         when the cache line needs to be fetched from external RAM and an interrupt occurs. This enables a
-        fix in the compiler that makes sure the specific code that is vulnerable to this will not be emitted.
+        fix in the compiler (-mfix-esp32-psram-cache-issue) that makes sure the specific code that is vulnerable
+        to this will not be emitted.
         
         This will also not use any bits of newlib that are located in ROM, opting for a version that is compiled
         with the workaround and located in flash instead.
@@ -212,6 +213,29 @@ config SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY
         If enabled the option,and add EXT_RAM_ATTR defined your variable,then your variable will be placed
         in PSRAM instead of internal memory, and placed most of variables of lwip,net802.11,pp,bluedroid library
         to external memory defaultly. 
+
+choice SPIRAM_OCCUPY_SPI_HOST
+    prompt "SPI host to use for 32MBit PSRAM"
+    default SPIRAM_OCCUPY_VSPI_HOST
+    depends on SPIRAM_SPEED_80M
+    help
+        When both flash and PSRAM is working under 80MHz, and the PSRAM is of type 32MBit, one of the HSPI/VSPI
+        host will be used to output the clock. Select which one to use here.
+
+config SPIRAM_OCCUPY_HSPI_HOST
+    bool "HSPI host (SPI2)"
+config SPIRAM_OCCUPY_VSPI_HOST
+    bool "VSPI host (SPI3)"
+endchoice
+
+config PICO_PSRAM_CS_IO
+    int "PSRAM CS IO for ESP32-PICO chip"
+    depends on SPIRAM_SUPPORT
+    range 0 33
+    default 10
+    help
+        When ESP32-PICO chip connect a external psram, the clock IO and data IO is fixed, but the CS IO can be 
+        any unused GPIO, user can config it based on hardware design.
 
 endmenu
 

@@ -439,7 +439,7 @@ tBTM_STATUS BTM_BleObserve(BOOLEAN start, UINT32 duration,
 **
 *******************************************************************************/
 tBTM_STATUS BTM_BleScan(BOOLEAN start, UINT32 duration,
-                           tBTM_INQ_RESULTS_CB *p_results_cb, tBTM_CMPL_CB *p_cmpl_cb)
+                           tBTM_INQ_RESULTS_CB *p_results_cb, tBTM_CMPL_CB *p_cmpl_cb, tBTM_INQ_DIS_CB *p_discard_cb)
 {
     tBTM_BLE_INQ_CB *p_inq = &btm_cb.ble_ctr_cb.inq_var;
     tBTM_STATUS status = BTM_WRONG_MODE;
@@ -457,6 +457,7 @@ tBTM_STATUS BTM_BleScan(BOOLEAN start, UINT32 duration,
 
         btm_cb.ble_ctr_cb.p_scan_results_cb = p_results_cb;
         btm_cb.ble_ctr_cb.p_scan_cmpl_cb = p_cmpl_cb;
+        btm_cb.ble_ctr_cb.p_obs_discard_cb = p_discard_cb;
         status = BTM_CMD_STARTED;
 
         /* scan is not started */
@@ -706,6 +707,37 @@ extern void BTM_BleReadControllerFeatures(tBTM_BLE_CTRL_FEATURES_CBACK  *p_vsc_c
     UNUSED(p_vsc_cback);
 #endif
     return ;
+}
+
+void BTM_VendorHciEchoCmdCallback(tBTM_VSC_CMPL *p1)
+{
+    if (!p1) {
+        return;
+    }
+    uint8_t *p = p1->p_param_buf;
+    uint8_t status, echo;
+    STREAM_TO_UINT8  (status, p);
+    STREAM_TO_UINT8  (echo, p);
+    BTM_TRACE_DEBUG("%s status 0x%x echo 0x%x", __func__, status, echo);
+}
+
+/******************************************************************************
+**
+** Function         BTM_VendorHciEchoCmdTest
+**
+** Description      vendor common echo hci cmd test, controller will return status and echo
+**
+** Parameters:      echo : echo value
+**
+** Returns          void
+**
+*******************************************************************************/
+void BTM_VendorHciEchoCmdTest(uint8_t echo)
+{
+    BTM_VendorSpecificCommand (HCI_VENDOR_COMMON_ECHO_CMD_OPCODE,
+                                1,
+                                &echo, 
+                                BTM_VendorHciEchoCmdCallback);
 }
 
 /*******************************************************************************
@@ -1613,6 +1645,52 @@ tBTM_STATUS BTM_BleWriteScanRspRaw(UINT8 *p_raw_scan_rsp, UINT32 raw_scan_rsp_le
     } else {
         return BTM_NO_RESOURCES;
     }
+}
+
+/*******************************************************************************
+**
+** Function         BTM_UpdateBleDuplicateExceptionalList
+**
+** Description      This function is called to update duplicate scan exceptional list.
+**
+** Parameters:      subcode: add, remove or clean duplicate scan exceptional list.
+**                  type: device info type
+**                  device_info: device information
+**                  update_exceptional_list_cmp_cb: complete callback
+**
+** Returns          status
+**
+*******************************************************************************/
+tBTM_STATUS BTM_UpdateBleDuplicateExceptionalList(uint8_t subcode, uint32_t type, BD_ADDR device_info, 
+                                                tBTM_UPDATE_DUPLICATE_EXCEPTIONAL_LIST_CMPL_CBACK update_exceptional_list_cmp_cb)
+{
+    tBTM_BLE_CB *ble_cb = &btm_cb.ble_ctr_cb;
+    ble_cb->update_exceptional_list_cmp_cb = update_exceptional_list_cmp_cb;
+    tBTM_STATUS status = BTM_NO_RESOURCES;
+    if (!controller_get_interface()->supports_ble()) {
+        return BTM_ILLEGAL_VALUE;
+    }
+    if(!device_info) {
+        return BTM_ILLEGAL_VALUE;
+    }
+    // subcoe + type + device info
+    uint8_t device_info_array[1 + 4 + BD_ADDR_LEN] = {0};
+    device_info_array[0] = subcode;
+    device_info_array[1] = type & 0xff;
+    device_info_array[2] = (type >> 8) & 0xff;
+    device_info_array[3] = (type >> 16) & 0xff;
+    device_info_array[4] = (type >> 24) & 0xff;
+    if(type == BTM_DUPLICATE_SCAN_EXCEPTIONAL_INFO_ADV_ADDR) {
+        bt_rcopy(&device_info_array[5], device_info, BD_ADDR_LEN);
+    } else {
+        memcpy(&device_info_array[5], device_info, 4);
+    }
+    status = BTM_VendorSpecificCommand(HCI_VENDOR_BLE_UPDATE_DUPLICATE_EXCEPTIONAL_LIST, 1 + 4 + BD_ADDR_LEN, device_info_array, NULL);
+    if(status == BTM_CMD_STARTED) {
+        status = BTM_SUCCESS;
+    }
+
+    return status;
 }
 
 /*******************************************************************************
@@ -3436,6 +3514,17 @@ static void btm_ble_process_adv_pkt_cont(BD_ADDR bda, UINT8 addr_type, UINT8 evt
     }
 }
 
+void btm_ble_process_adv_discard_evt(UINT8 *p)
+{
+#if (BLE_ADV_REPORT_FLOW_CONTROL == TRUE)
+    uint32_t num_dis = 0;
+    STREAM_TO_UINT32 (num_dis, p);
+    tBTM_INQ_DIS_CB *p_obs_discard_cb = btm_cb.ble_ctr_cb.p_obs_discard_cb;
+    if(p_obs_discard_cb) {
+        (p_obs_discard_cb)(num_dis);
+    }
+#endif
+}
 /*******************************************************************************
 **
 ** Function         btm_ble_start_scan

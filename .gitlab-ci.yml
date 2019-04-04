@@ -113,7 +113,6 @@ build_template_app:
     - build
   variables:
     BATCH_BUILD: "1"
-    IDF_CI_BUILD: "1"
   only:
     variables:
       - $BOT_TRIGGER_WITH_LABEL == null
@@ -248,7 +247,6 @@ build_esp_idf_tests_cmake:
       - $LOG_PATH
     expire_in: 2 days
   variables:
-    IDF_CI_BUILD: "1"
     LOG_PATH: "$CI_PROJECT_DIR/log_examples_make"
   only:
     variables:
@@ -281,7 +279,6 @@ build_esp_idf_tests_cmake:
       - $LOG_PATH
     expire_in: 2 days
   variables:
-    IDF_CI_BUILD: "1"
     LOG_PATH: "$CI_PROJECT_DIR/log_examples_cmake"
   only:
     variables:
@@ -732,8 +729,11 @@ check_ut_cmake_make:
 
 check_submodule_sync:
   <<: *check_job_template
+  tags:
+    - github_sync
   variables:
     GIT_STRATEGY: clone
+  retry: 2
   script:
     # check if all submodules are correctly synced to public repostory
     - git submodule update --init --recursive
@@ -963,7 +963,7 @@ example_test_002_01:
     - ESP32
     - Example_ShieldBox_Basic
 
-example_test_003_01:
+.example_test_003_01:
   <<: *example_test_template
   tags:
     - ESP32
