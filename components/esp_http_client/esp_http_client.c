@@ -1092,8 +1092,11 @@ esp_err_t esp_http_client_open(esp_http_client_handle_t client, int write_len)
     if ((err = esp_http_client_connect(client)) != ESP_OK) {
         return err;
     }
-    if ((err = esp_http_client_request_send(client, write_len)) != ESP_OK) {
-        return err; 
+    if ((err = esp_http_client_request_send(client, write_len+client->post_len)) != ESP_OK) {
+        return err;
+    }
+    if ((err = esp_http_client_send_post_data(client)) != ESP_OK) {
+        return err;
     }
     return ESP_OK;
 }
