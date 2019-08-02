@@ -58,7 +58,7 @@
 #define APLL_CAL_DELAY_2            0x3f
 #define APLL_CAL_DELAY_3            0x1f
 
-#define XTAL_32K_DAC_VAL    1
+#define XTAL_32K_DAC_VAL    3
 #define XTAL_32K_DRES_VAL   3
 #define XTAL_32K_DBIAS_VAL  0
 
@@ -85,13 +85,16 @@
 /* Core voltage needs to be increased in two cases:
  * 1. running at 240 MHz
  * 2. running with 80MHz Flash frequency
+ *
+ * There is a record in efuse which indicates the proper voltage for these two cases.
  */
+#define RTC_CNTL_DBIAS_HP_VOLT         (RTC_CNTL_DBIAS_1V25 - (REG_GET_FIELD(EFUSE_BLK0_RDATA5_REG, EFUSE_RD_VOL_LEVEL_HP_INV)))
 #ifdef CONFIG_ESPTOOLPY_FLASHFREQ_80M
-#define DIG_DBIAS_80M_160M  RTC_CNTL_DBIAS_1V25
+#define DIG_DBIAS_80M_160M  RTC_CNTL_DBIAS_HP_VOLT
 #else
 #define DIG_DBIAS_80M_160M  RTC_CNTL_DBIAS_1V10
 #endif
-#define DIG_DBIAS_240M      RTC_CNTL_DBIAS_1V25
+#define DIG_DBIAS_240M      RTC_CNTL_DBIAS_HP_VOLT
 #define DIG_DBIAS_XTAL      RTC_CNTL_DBIAS_1V10
 #define DIG_DBIAS_2M        RTC_CNTL_DBIAS_1V00
 
@@ -111,14 +114,36 @@ static const char* TAG = "rtc_clk";
 
 static void rtc_clk_32k_enable_common(int dac, int dres, int dbias)
 {
-    SET_PERI_REG_MASK(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_X32N_MUX_SEL | RTC_IO_X32P_MUX_SEL);
     CLEAR_PERI_REG_MASK(RTC_IO_XTAL_32K_PAD_REG,
-            RTC_IO_X32P_RDE | RTC_IO_X32P_RUE | RTC_IO_X32N_RUE |
-            RTC_IO_X32N_RDE | RTC_IO_X32N_MUX_SEL | RTC_IO_X32P_MUX_SEL);
+                        RTC_IO_X32P_RDE | RTC_IO_X32P_RUE | RTC_IO_X32N_RUE |
+                        RTC_IO_X32N_RDE | RTC_IO_X32N_FUN_IE | RTC_IO_X32P_FUN_IE);
+    SET_PERI_REG_MASK(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_X32N_MUX_SEL | RTC_IO_X32P_MUX_SEL);
+    /* Set the parameters of xtal
+        dac --> current
+        dres --> resistance
+        dbias --> bais voltage
+    */
     REG_SET_FIELD(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_DAC_XTAL_32K, dac);
     REG_SET_FIELD(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_DRES_XTAL_32K, dres);
     REG_SET_FIELD(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_DBIAS_XTAL_32K, dbias);
-    SET_PERI_REG_MASK(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_XPD_XTAL_32K);
+
+#ifdef CONFIG_ESP32_RTC_EXTERNAL_CRYSTAL_ADDITIONAL_CURRENT
+    /* TOUCH sensor can provide additional current to external XTAL.
+       In some case, X32N and X32P PAD don't have enough drive capability to start XTAL */
+    SET_PERI_REG_MASK(RTC_IO_TOUCH_CFG_REG, RTC_IO_TOUCH_XPD_BIAS_M);
+    /* Tie PAD Touch8 to VDD
+       NOTE: TOUCH8 and TOUCH9 register settings are reversed except for DAC, so we set RTC_IO_TOUCH_PAD9_REG here instead
+    */
+    SET_PERI_REG_MASK(RTC_IO_TOUCH_PAD9_REG, RTC_IO_TOUCH_PAD9_TIE_OPT_M);
+    /* Set the current used to compensate TOUCH PAD8 */
+    SET_PERI_REG_BITS(RTC_IO_TOUCH_PAD8_REG, RTC_IO_TOUCH_PAD8_DAC, 4, RTC_IO_TOUCH_PAD8_DAC_S);
+    /* Power up TOUCH8
+       So the Touch DAC start to drive some current from VDD to TOUCH8(which is also XTAL-N)
+     */
+    SET_PERI_REG_MASK(RTC_IO_TOUCH_PAD9_REG, RTC_IO_TOUCH_PAD9_XPD_M);
+#endif // CONFIG_ESP32_RTC_EXTERNAL_CRYSTAL_ADDITIONAL_CURRENT
+    /* Power up external xtal */
+    SET_PERI_REG_MASK(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_XPD_XTAL_32K_M);
 }
 
 void rtc_clk_32k_enable(bool enable)
@@ -126,7 +151,14 @@ void rtc_clk_32k_enable(bool enable)
     if (enable) {
         rtc_clk_32k_enable_common(XTAL_32K_DAC_VAL, XTAL_32K_DRES_VAL, XTAL_32K_DBIAS_VAL);
     } else {
-        CLEAR_PERI_REG_MASK(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_XPD_XTAL_32K);
+        /* Disable X32N and X32P pad drive external xtal */
+        CLEAR_PERI_REG_MASK(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_XPD_XTAL_32K_M);
+        CLEAR_PERI_REG_MASK(RTC_IO_XTAL_32K_PAD_REG, RTC_IO_X32N_MUX_SEL | RTC_IO_X32P_MUX_SEL);
+
+#ifdef CONFIG_ESP32_RTC_EXTERNAL_CRYSTAL_ADDITIONAL_CURRENT
+        /* Power down TOUCH */
+        CLEAR_PERI_REG_MASK(RTC_IO_TOUCH_PAD9_REG, RTC_IO_TOUCH_PAD9_XPD_M);
+#endif // CONFIG_ESP32_RTC_EXTERNAL_CRYSTAL_ADDITIONAL_CURRENT
     }
 }
 
@@ -498,7 +530,7 @@ rtc_cpu_freq_t rtc_clk_cpu_freq_get()
 {
     rtc_cpu_freq_config_t config;
     rtc_clk_cpu_freq_get_config(&config);
-    rtc_cpu_freq_t freq;
+    rtc_cpu_freq_t freq = RTC_CPU_FREQ_XTAL;
     rtc_clk_cpu_freq_from_mhz_internal(config.freq_mhz, &freq);
     return freq;
 }
@@ -559,7 +591,7 @@ void rtc_clk_cpu_freq_to_config(rtc_cpu_freq_t cpu_freq, rtc_cpu_freq_config_t* 
             source = RTC_CPU_FREQ_SRC_XTAL;
             if (cpu_freq == RTC_CPU_FREQ_2M) {
                 freq_mhz = 2;
-                divider = out_config->source_freq_mhz / 2;
+                divider = source_freq_mhz / 2;
             } else {
                 freq_mhz = source_freq_mhz;
                 divider = 1;

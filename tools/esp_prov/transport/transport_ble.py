@@ -15,9 +15,10 @@
 
 from __future__ import print_function
 
-from .transport import *
+from .transport import Transport
 
 from . import ble_cli
+
 
 class Transport_BLE(Transport):
     def __init__(self, devname, service_uuid, nu_lookup):
@@ -26,25 +27,34 @@ class Transport_BLE(Transport):
             # Calculate characteristic UUID for each endpoint
             nu_lookup[name] = service_uuid[:4] + '{:02x}'.format(
                 int(nu_lookup[name], 16) & int(service_uuid[4:8], 16)) + service_uuid[8:]
-        self.name_uuid_lookup = nu_lookup
 
         # Get BLE client module
         self.cli = ble_cli.get_client()
 
         # Use client to connect to BLE device and bind to service
-        if not self.cli.connect(devname = devname, iface = 'hci0', srv_uuid = service_uuid):
+        if not self.cli.connect(devname=devname, iface='hci0',
+                                chrc_names=nu_lookup.keys(),
+                                fallback_srv_uuid=service_uuid):
             raise RuntimeError("Failed to initialize transport")
 
-        # Check if expected characteristics are provided by the service
-        for name in self.name_uuid_lookup.keys():
-            if not self.cli.has_characteristic(self.name_uuid_lookup[name]):
-                raise RuntimeError("'" + name + "' endpoint not found")
+        # Irrespective of provided parameters, let the client
+        # generate a lookup table by reading advertisement data
+        # and characteristic user descriptors
+        self.name_uuid_lookup = self.cli.get_nu_lookup()
+
+        # If that doesn't work, use the lookup table provided as parameter
+        if self.name_uuid_lookup is None:
+            self.name_uuid_lookup = nu_lookup
+            # Check if expected characteristics are provided by the service
+            for name in self.name_uuid_lookup.keys():
+                if not self.cli.has_characteristic(self.name_uuid_lookup[name]):
+                    raise RuntimeError("'" + name + "' endpoint not found")
 
     def __del__(self):
         # Make sure device is disconnected before application gets closed
         try:
             self.disconnect()
-        except:
+        except Exception:
             pass
 
     def disconnect(self):

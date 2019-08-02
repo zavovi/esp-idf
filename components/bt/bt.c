@@ -43,6 +43,7 @@
 #include "soc/rtc_cntl_reg.h"
 #include "soc/soc_memory_layout.h"
 #include "esp_clk.h"
+#include "esp_coexist_internal.h"
 
 
 #if CONFIG_BT_ENABLED
@@ -61,6 +62,7 @@
 #define BTDM_CFG_CONTROLLER_RUN_APP_CPU     (1<<2)
 #define BTDM_CFG_SCAN_DUPLICATE_OPTIONS     (1<<3)
 #define BTDM_CFG_SEND_ADV_RESERVED_SIZE     (1<<4)
+#define BTDM_CFG_BLE_FULL_SCAN_SUPPORTED    (1<<5)
 
 /* Sleep mode */
 #define BTDM_MODEM_SLEEP_MODE_NONE          (0)
@@ -165,6 +167,11 @@ struct osi_funcs_t {
     void (* _btdm_sleep_exit_phase1)(void);  /* called from ISR */
     void (* _btdm_sleep_exit_phase2)(void);  /* called from ISR */
     void (* _btdm_sleep_exit_phase3)(void);  /* called from task */
+    int (* _coex_bt_request)(uint32_t event, uint32_t latency, uint32_t duration);
+    int (* _coex_bt_release)(uint32_t event);
+    int (* _coex_register_bt_cb)(coex_func_cb_t cb);
+    uint32_t (* _coex_bb_reset_lock)(void);
+    void (* _coex_bb_reset_unlock)(uint32_t restore);
     uint32_t _magic;
 };
 
@@ -204,6 +211,12 @@ extern int bredr_txpwr_set(int min_power_level, int max_power_level);
 extern int bredr_txpwr_get(int *min_power_level, int *max_power_level);
 extern void bredr_sco_datapath_set(uint8_t data_path);
 extern void btdm_controller_scan_duplicate_list_clear(void);
+/* Coexistence */
+extern int coex_bt_request_wrapper(uint32_t event, uint32_t latency, uint32_t duration);
+extern int coex_bt_release_wrapper(uint32_t event);
+extern int coex_register_bt_cb_wrapper(coex_func_cb_t cb);
+extern uint32_t coex_bb_reset_lock_wrapper(void);
+extern void coex_bb_reset_unlock_wrapper(uint32_t restore);
 
 extern char _bss_start_btdm;
 extern char _bss_end_btdm;
@@ -310,6 +323,11 @@ static const struct osi_funcs_t osi_funcs_ro = {
     ._btdm_sleep_exit_phase1 = btdm_sleep_exit_phase1_wrapper,
     ._btdm_sleep_exit_phase2 = NULL,
     ._btdm_sleep_exit_phase3 = btdm_sleep_exit_phase3_wrapper,
+    ._coex_bt_request = coex_bt_request_wrapper,
+    ._coex_bt_release = coex_bt_release_wrapper,
+    ._coex_register_bt_cb = coex_register_bt_cb_wrapper,
+    ._coex_bb_reset_lock = coex_bb_reset_lock_wrapper,
+    ._coex_bb_reset_unlock = coex_bb_reset_unlock_wrapper,
     ._magic = OSI_MAGIC_VALUE,
 };
 
@@ -357,6 +375,7 @@ static DRAM_ATTR esp_timer_handle_t s_btdm_slp_tmr;
 static DRAM_ATTR esp_pm_lock_handle_t s_pm_lock;
 static DRAM_ATTR esp_pm_lock_handle_t s_light_sleep_pm_lock; // pm_lock to prevent light sleep due to incompatibility currently
 static DRAM_ATTR QueueHandle_t s_pm_lock_sem = NULL;
+static void btdm_slp_tmr_callback(void *arg);
 #endif
 
 static inline void btdm_check_and_init_bb(void)
@@ -887,6 +906,9 @@ static uint32_t btdm_config_mask_load(void)
 #if CONFIG_BTDM_CONTROLLER_PINNED_TO_CORE == 1
     mask |= BTDM_CFG_CONTROLLER_RUN_APP_CPU;
 #endif
+#if CONFIG_BTDM_CONTROLLER_FULL_SCAN_SUPPORTED
+    mask |= BTDM_CFG_BLE_FULL_SCAN_SUPPORTED;
+#endif /* CONFIG_BTDM_CONTROLLER_FULL_SCAN_SUPPORTED */
     mask |= BTDM_CFG_SCAN_DUPLICATE_OPTIONS;
 
     mask |= BTDM_CFG_SEND_ADV_RESERVED_SIZE;
