@@ -272,7 +272,8 @@ esp_err_t sdspi_host_init_slot(int slot, const sdspi_slot_config_t* slot_config)
         .mosi_io_num = slot_config->gpio_mosi,
         .sclk_io_num = slot_config->gpio_sck,
         .quadwp_io_num = -1,
-        .quadhd_io_num = -1
+        .quadhd_io_num = -1,
+		.max_transfer_sz = 320*240*3+8,
     };
 
     // Initialize SPI bus
