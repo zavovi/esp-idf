@@ -153,7 +153,7 @@ esp_err_t esp_vfs_fat_sdmmc_mount(const char* base_path,
             goto fail;
         }
     }
-    ESP_LOGE(TAG, "Released SPI");
+
     sdspi_host_release(host_config->slot);
     return ESP_OK;
 
