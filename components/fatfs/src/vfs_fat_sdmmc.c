@@ -28,6 +28,11 @@ static sdmmc_card_t* s_card = NULL;
 static uint8_t s_pdrv = 0;
 static char * s_base_path = NULL;
 
+
+
+void sdspi_host_acquire(int slot);
+void sdspi_host_release(int slot);
+
 esp_err_t esp_vfs_fat_sdmmc_mount(const char* base_path,
     const sdmmc_host_t* host_config,
     const void* slot_config,
@@ -80,6 +85,8 @@ esp_err_t esp_vfs_fat_sdmmc_mount(const char* base_path,
         ESP_LOGD(TAG, "slot_config returned rc=0x%x", err);
         goto fail;
     }
+
+    sdspi_host_acquire(host_config->slot);
 
     // probe and initialize card
     err = sdmmc_card_init(host_config, s_card);
@@ -146,6 +153,8 @@ esp_err_t esp_vfs_fat_sdmmc_mount(const char* base_path,
             goto fail;
         }
     }
+    ESP_LOGE(TAG, "Released SPI");
+    sdspi_host_release(host_config->slot);
     return ESP_OK;
 
 fail:
