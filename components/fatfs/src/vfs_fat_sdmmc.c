@@ -86,7 +86,8 @@ esp_err_t esp_vfs_fat_sdmmc_mount(const char* base_path,
         goto fail;
     }
 
-    sdspi_host_acquire(host_config->slot);
+    if (host_config->flags == SDMMC_HOST_FLAG_SPI)
+    	sdspi_host_acquire(host_config->slot);
 
     // probe and initialize card
     err = sdmmc_card_init(host_config, s_card);
@@ -153,8 +154,9 @@ esp_err_t esp_vfs_fat_sdmmc_mount(const char* base_path,
             goto fail;
         }
     }
+    if (host_config->flags == SDMMC_HOST_FLAG_SPI)
+    	sdspi_host_release(host_config->slot);
 
-    sdspi_host_release(host_config->slot);
     return ESP_OK;
 
 fail:
