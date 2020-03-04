@@ -309,7 +309,8 @@ esp_err_t sdspi_host_init_slot(int slot, const sdspi_slot_config_t* slot_config)
         .mosi_io_num = slot_config->gpio_mosi,
         .sclk_io_num = slot_config->gpio_sck,
         .quadwp_io_num = GPIO_NUM_NC,
-        .quadhd_io_num = GPIO_NUM_NC
+        .quadhd_io_num = GPIO_NUM_NC,
+		.max_transfer_sz = 320*240*3+8
     };
 
     // Initialize SPI bus
@@ -317,7 +318,7 @@ esp_err_t sdspi_host_init_slot(int slot, const sdspi_slot_config_t* slot_config)
             slot_config->dma_channel);
     if (ret != ESP_OK) {
         ESP_LOGD(TAG, "spi_bus_initialize failed with rc=0x%x", ret);
-        return ret;
+        //return ret;
     }
 
     // Attach the SD card to the SPI bus
@@ -974,3 +975,12 @@ esp_err_t sdspi_host_io_int_wait(int slot, TickType_t timeout_ticks)
     return ESP_OK;
 }
 
+void sdspi_host_acquire(int slot)
+{
+	spi_device_acquire_bus(s_slots[slot].handle, portMAX_DELAY);
+}
+
+void sdspi_host_release(int slot)
+{
+	spi_device_release_bus(s_slots[slot].handle);
+}
