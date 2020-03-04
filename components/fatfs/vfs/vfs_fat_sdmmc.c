@@ -172,6 +172,10 @@ fail:
     s_card = NULL;
     free(s_base_path);
     s_base_path = NULL;
+
+    if (host_config->flags == SDMMC_HOST_FLAG_SPI)
+    	sdspi_host_release(host_config->slot);
+
     return err;
 }
 
