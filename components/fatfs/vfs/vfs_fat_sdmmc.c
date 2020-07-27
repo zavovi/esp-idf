@@ -398,3 +398,54 @@ esp_err_t esp_vfs_fat_sdcard_unmount(const char *base_path, sdmmc_card_t *card)
     }
     return err;
 }
+
+esp_err_t esp_vfs_sdmmc_format(const esp_vfs_fat_mount_config_t* mount_config)
+{
+    const size_t workbuf_size = 4096;
+    void* workbuf = NULL;
+    esp_err_t err = ESP_OK;
+
+    FRESULT res;
+    if (s_card == NULL) {
+		return ESP_ERR_INVALID_STATE;
+	}
+	char drv[3] = {(char)('0' + s_pdrv), ':', 0};
+
+    //Format from here
+    ESP_LOGW(TAG, "partitioning card");
+    workbuf = ff_memalloc(workbuf_size);
+    if (workbuf == NULL) {
+        err = ESP_ERR_NO_MEM;
+        goto fail;
+    }
+
+    DWORD plist[] = {100, 0, 0, 0};
+    res = f_fdisk(s_pdrv, plist, workbuf);
+    if (res != FR_OK) {
+        err = ESP_FAIL;
+        ESP_LOGE(TAG, "f_fdisk failed (%d)", res);
+        goto fail;
+    }
+
+    size_t alloc_unit_size = esp_vfs_fat_get_allocation_unit_size(
+            s_card->csd.sector_size,
+            mount_config->allocation_unit_size);
+    ESP_LOGW(TAG, "formatting card, allocation unit size=%d", alloc_unit_size);
+
+    res = f_mkfs(drv, FM_FAT32, alloc_unit_size, workbuf, workbuf_size);
+    if (res != FR_OK) {
+        err = ESP_FAIL;
+        ESP_LOGE(TAG, "f_mkfs failed (%d)", res);
+        goto fail;
+    }
+    free(workbuf);
+    workbuf = NULL;
+
+    return ESP_OK;
+
+fail:
+	if(workbuf)
+		free(workbuf);
+
+	return err;
+}

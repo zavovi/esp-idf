@@ -290,6 +290,8 @@ esp_err_t esp_vfs_fat_rawflash_mount(const char* base_path,
  esp_err_t esp_vfs_fat_rawflash_unmount(const char* base_path, const char* partition_label);
 
 
+ esp_err_t esp_vfs_sdmmc_format(const esp_vfs_fat_mount_config_t* mount_config);
+
 #ifdef __cplusplus
 }
 #endif
